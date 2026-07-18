@@ -1,0 +1,75 @@
+{
+  "name": "HOST-01 Evidence Intake (POC)",
+  "nodes": [
+    {
+      "parameters": {"httpMethod": "POST", "path": "host-evidence-intake", "responseMode": "lastNode", "options": {}},
+      "id": "host-webhook",
+      "name": "Host Intake Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [-720, 0],
+      "webhookId": "host-evidence-intake-poc"
+    },
+    {
+      "parameters": {
+        "assignments": {"assignments": [
+          {"id": "case", "name": "case_id", "value": "={{ $json.body?.case_id || ('HOST-' + $now.toFormat('yyyyLLdd-HHmmss')) }}", "type": "string"},
+          {"id": "filename", "name": "filename", "value": "={{ $json.body?.filename }}", "type": "string"},
+          {"id": "size", "name": "size_bytes", "value": "={{ Number($json.body?.size_bytes) }}", "type": "number"},
+          {"id": "sha", "name": "expected_sha256", "value": "={{ $json.body?.expected_sha256 }}", "type": "string"},
+          {"id": "questions", "name": "analyst_questions", "value": "={{ $json.body?.analyst_questions || [] }}", "type": "array"}
+        ]},
+        "options": {}
+      },
+      "id": "host-normalize",
+      "name": "Normalize Intake",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [-480, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.ANALYSIS_API_URL + '/v1/uploads' }}",
+        "sendHeaders": true,
+        "headerParameters": {"parameters": [{"name": "Content-Type", "value": "application/json"}]},
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { case_id: $json.case_id, filename: $json.filename, size_bytes: $json.size_bytes, expected_sha256: $json.expected_sha256 } }}",
+        "options": {}
+      },
+      "id": "host-upload",
+      "name": "Create Presigned Upload",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-220, 0]
+    },
+    {
+      "parameters": {
+        "assignments": {"assignments": [
+          {"id": "warning", "name": "upload_instruction", "value": "Upload directly to the presigned URL. Do not send forensic image bytes through n8n or Jira.", "type": "string"},
+          {"id": "next", "name": "next_step", "value": "After storage completion, submit host_profile and host_artifact_extract jobs, then run persistence, execution, identity, network, malware, timeline, custom-hunt, and skeptic sub-workflows.", "type": "string"}
+        ]},
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "id": "host-response",
+      "name": "Return Upload Destination",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [40, 0]
+    }
+  ],
+  "connections": {
+    "Host Intake Webhook": {"main": [[{"node": "Normalize Intake", "type": "main", "index": 0}]]},
+    "Normalize Intake": {"main": [[{"node": "Create Presigned Upload", "type": "main", "index": 0}]]},
+    "Create Presigned Upload": {"main": [[{"node": "Return Upload Destination", "type": "main", "index": 0}]]}
+  },
+  "pinData": {},
+  "settings": {"executionOrder": "v1"},
+  "active": false,
+  "versionId": "501a6580-aef8-442d-98a2-cb1685c0f78a",
+  "meta": {"templateCredsSetupCompleted": false},
+  "tags": []
+}
+

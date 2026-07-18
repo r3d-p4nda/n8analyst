@@ -1,0 +1,51 @@
+{
+  "name": "AGENT-00 Structured Analysis Template (POC)",
+  "nodes": [
+    {
+      "parameters": {"workflowInputs": {"values": [{"name": "case_id"}, {"name": "agent_role"}, {"name": "prompt"}, {"name": "normalized_evidence", "type": "object"}, {"name": "model_profile"}]}},
+      "id": "agent-trigger",
+      "name": "When Executed by Another Workflow",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [-520, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.MODEL_GATEWAY_URL + '/chat/completions' }}",
+        "sendHeaders": true,
+        "headerParameters": {"parameters": [{"name": "Content-Type", "value": "application/json"}]},
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { model: $json.model_profile, temperature: 0, response_format: { type: 'json_object' }, messages: [ { role: 'system', content: $json.prompt }, { role: 'user', content: JSON.stringify({ case_id: $json.case_id, normalized_evidence: $json.normalized_evidence }) } ] } }}",
+        "options": {}
+      },
+      "id": "agent-model",
+      "name": "Call Local Model Gateway",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-260, 0]
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $json.choices?.[0]?.message?.content;\nif (!raw) throw new Error('Model response did not contain message content');\nlet result;\ntry { result = typeof raw === 'string' ? JSON.parse(raw) : raw; } catch (error) { throw new Error(`Model returned invalid JSON: ${error.message}`); }\nif (!Array.isArray(result.findings) || !Array.isArray(result.limitations)) throw new Error('Result does not match the minimum finding contract');\nfor (const finding of result.findings) {\n  if (!Array.isArray(finding.evidence) || finding.evidence.length === 0) throw new Error('Rejected unsupported finding with no evidence citation');\n}\nreturn [{ json: result }];"
+      },
+      "id": "agent-validate",
+      "name": "Validate Minimum Finding Contract",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [0, 0]
+    }
+  ],
+  "connections": {
+    "When Executed by Another Workflow": {"main": [[{"node": "Call Local Model Gateway", "type": "main", "index": 0}]]},
+    "Call Local Model Gateway": {"main": [[{"node": "Validate Minimum Finding Contract", "type": "main", "index": 0}]]}
+  },
+  "pinData": {},
+  "settings": {"executionOrder": "v1"},
+  "active": false,
+  "versionId": "117c25f0-07df-4507-97dd-0ef5ab4ae185",
+  "meta": {"templateCredsSetupCompleted": false},
+  "tags": []
+}
+

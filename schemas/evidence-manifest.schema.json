@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://n8analyst.local/schemas/evidence-manifest.schema.json",
+  "title": "Evidence manifest",
+  "type": "object",
+  "required": ["case_id", "created_at", "objects"],
+  "properties": {
+    "case_id": {"type": "string"},
+    "created_at": {"type": "string", "format": "date-time"},
+    "created_by": {"type": "string"},
+    "acquisition_notes": {"type": "string"},
+    "objects": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/evidenceObject"}
+    }
+  },
+  "$defs": {
+    "evidenceObject": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["object_id", "sha256", "source", "classification"],
+      "properties": {
+        "object_id": {"type": "string", "minLength": 1},
+        "sha256": {"type": "string", "pattern": "^[a-fA-F0-9]{64}$"},
+        "size_bytes": {"type": "integer", "minimum": 0},
+        "media_type": {"type": "string"},
+        "source": {"type": "string", "minLength": 1},
+        "classification": {"enum": ["internal", "restricted", "highly-restricted"]},
+        "parent_sha256": {"type": "string", "pattern": "^[a-fA-F0-9]{64}$"},
+        "acquired_at": {"type": "string", "format": "date-time"},
+        "tool": {"type": "string"},
+        "tool_version": {"type": "string"}
+      }
+    }
+  }
+}
+
