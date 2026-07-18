@@ -1,0 +1,115 @@
+{
+  "name": "NET-01 Security Onion Alert Orchestrator (POC)",
+  "nodes": [
+    {
+      "parameters": {"httpMethod": "POST", "path": "security-onion-alert", "responseMode": "onReceived", "options": {}},
+      "id": "net-webhook",
+      "name": "Security Onion Alert Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [-900, 0],
+      "webhookId": "security-onion-alert-poc"
+    },
+    {
+      "parameters": {
+        "assignments": {"assignments": [
+          {"id": "case-id", "name": "case_id", "value": "={{ 'NET-' + $now.toFormat('yyyyLLdd-HHmmss') }}", "type": "string"},
+          {"id": "job-type", "name": "job_type", "value": "network", "type": "string"},
+          {"id": "priority", "name": "priority", "value": "={{ $json.body?.priority || 'medium' }}", "type": "string"},
+          {"id": "event", "name": "event", "value": "={{ $json.body }}", "type": "object"},
+          {"id": "idem", "name": "idempotency_key", "value": "={{ [$json.body?.sensor, $json.body?.event_id, $json.body?.community_id].filter(Boolean).join(':') }}", "type": "string"}
+        ]},
+        "options": {}
+      },
+      "id": "net-normalize",
+      "name": "Normalize Alert Envelope",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [-660, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.ANALYSIS_API_URL + '/v1/jobs' }}",
+        "sendHeaders": true,
+        "headerParameters": {"parameters": [{"name": "Content-Type", "value": "application/json"}]},
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { case_id: $json.case_id, operation: 'security_onion_enrich', idempotency_key: $json.idempotency_key + ':enrich', inputs: { event: $json.event }, callback_url: $execution.resumeUrl, limits: { max_runtime_seconds: 300, max_output_bytes: 10485760 } } }}",
+        "options": {}
+      },
+      "id": "net-enrich",
+      "name": "Submit Security Onion Enrichment",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-400, 0]
+    },
+    {
+      "parameters": {
+        "amount": 15,
+        "unit": "seconds"
+      },
+      "id": "net-wait",
+      "name": "Wait Before Status Check",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [-160, 0]
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.ANALYSIS_API_URL + '/v1/jobs/' + $('Submit Security Onion Enrichment').item.json.job_id }}",
+        "options": {}
+      },
+      "id": "net-status",
+      "name": "Get Enrichment Status",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [80, 0]
+    },
+    {
+      "parameters": {"conditions": {"options": {"caseSensitive": true, "leftValue": "", "typeValidation": "strict"}, "conditions": [{"id": "succeeded", "leftValue": "={{ $json.state }}", "rightValue": "succeeded", "operator": {"type": "string", "operation": "equals"}}], "combinator": "and"}, "options": {}},
+      "id": "net-complete",
+      "name": "Enrichment Complete?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [320, 0]
+    },
+    {
+      "parameters": {
+        "assignments": {"assignments": [
+          {"id": "note", "name": "poc_next_step", "value": "Apply carve eligibility, submit security_onion_pcap_carve, run deterministic analyzers, then invoke versioned agent sub-workflows.", "type": "string"},
+          {"id": "human", "name": "human_approval_required", "value": true, "type": "boolean"}
+        ]},
+        "options": {}
+      },
+      "id": "net-handoff",
+      "name": "POC Analyst Handoff",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [580, -100]
+    },
+    {
+      "parameters": {"errorMessage": "Enrichment job did not complete successfully. Add bounded polling and error handling before production use."},
+      "id": "net-stop",
+      "name": "Stop on Incomplete Job",
+      "type": "n8n-nodes-base.stopAndError",
+      "typeVersion": 1,
+      "position": [580, 120]
+    }
+  ],
+  "connections": {
+    "Security Onion Alert Webhook": {"main": [[{"node": "Normalize Alert Envelope", "type": "main", "index": 0}]]},
+    "Normalize Alert Envelope": {"main": [[{"node": "Submit Security Onion Enrichment", "type": "main", "index": 0}]]},
+    "Submit Security Onion Enrichment": {"main": [[{"node": "Wait Before Status Check", "type": "main", "index": 0}]]},
+    "Wait Before Status Check": {"main": [[{"node": "Get Enrichment Status", "type": "main", "index": 0}]]},
+    "Get Enrichment Status": {"main": [[{"node": "Enrichment Complete?", "type": "main", "index": 0}]]},
+    "Enrichment Complete?": {"main": [[{"node": "POC Analyst Handoff", "type": "main", "index": 0}], [{"node": "Stop on Incomplete Job", "type": "main", "index": 0}]]}
+  },
+  "pinData": {},
+  "settings": {"executionOrder": "v1"},
+  "active": false,
+  "versionId": "c7840b85-79cb-4f92-ae09-a1ab86388631",
+  "meta": {"templateCredsSetupCompleted": false},
+  "tags": []
+}
+

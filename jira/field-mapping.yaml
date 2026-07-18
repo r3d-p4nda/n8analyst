@@ -1,0 +1,56 @@
+issue_type: Security Investigation
+project_key_env: JIRA_PROJECT_KEY
+deduplication:
+  property_key: n8analyst.idempotency_key
+  behavior: update_existing_open_issue
+fields:
+  summary:
+    source: normalized.summary
+    format: "[{investigation_type}] {asset} - {reason}"
+  description:
+    source: report.executive_summary
+  labels:
+    static: [n8analyst, automated-triage]
+  investigation_type:
+    jira_field: CHANGE_ME_CUSTOM_FIELD
+    source: job.job_type
+  affected_assets:
+    jira_field: CHANGE_ME_CUSTOM_FIELD
+    source: job.scope.hosts
+  external_id:
+    jira_field: CHANGE_ME_CUSTOM_FIELD
+    source: job.idempotency_key
+  evidence_manifest:
+    jira_field: CHANGE_ME_CUSTOM_FIELD
+    source: report.manifest_url
+  automation_confidence:
+    jira_field: CHANGE_ME_CUSTOM_FIELD
+    source: report.confidence
+  collection_gaps:
+    jira_field: CHANGE_ME_CUSTOM_FIELD
+    source: report.collection_gaps
+  automation_version:
+    jira_field: CHANGE_ME_CUSTOM_FIELD
+    source: report.version_manifest
+status_mapping:
+  intake: Intake
+  automated_analysis: Automated Analysis
+  analyst_review: Analyst Review
+  more_collection: More Collection
+  benign: Benign
+  escalated: Escalated
+  confirmed_incident: Confirmed Incident
+attachments:
+  allow:
+    - application/json
+    - text/markdown
+    - application/pdf
+  deny:
+    - application/vnd.tcpdump.pcap
+    - application/octet-stream
+    - application/x-ewf
+notes:
+  - Raw PCAP and forensic images remain in controlled evidence storage.
+  - Jira receives hashes, manifests, reports, and access-controlled evidence links.
+  - All final dispositions require analyst action during the POC.
+

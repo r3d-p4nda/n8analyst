@@ -1,0 +1,140 @@
+openapi: 3.1.0
+info:
+  title: n8analyst Analysis Worker API
+  version: 0.1.0
+  description: >-
+    Version-neutral boundary between n8n and isolated Security Onion/forensic
+    workers. Implementations must use allowlisted operations and immutable evidence.
+servers:
+  - url: https://analysis-api.internal.example
+security:
+  - bearerAuth: []
+paths:
+  /healthz:
+    get:
+      security: []
+      operationId: health
+      responses:
+        "200":
+          description: Service is ready
+  /v1/jobs:
+    post:
+      operationId: submitJob
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/JobSubmission"
+      responses:
+        "202":
+          description: Job accepted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JobStatus"
+        "409":
+          description: Idempotency key already exists
+  /v1/jobs/{job_id}:
+    get:
+      operationId: getJob
+      parameters:
+        - name: job_id
+          in: path
+          required: true
+          schema: {type: string}
+      responses:
+        "200":
+          description: Current job status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JobStatus"
+  /v1/uploads:
+    post:
+      operationId: createEvidenceUpload
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [case_id, filename, size_bytes]
+              properties:
+                case_id: {type: string}
+                filename: {type: string}
+                size_bytes: {type: integer, minimum: 1}
+                expected_sha256: {type: string, pattern: "^[a-fA-F0-9]{64}$"}
+      responses:
+        "201":
+          description: Short-lived presigned upload destination
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [object_id, upload_url, expires_at]
+                properties:
+                  object_id: {type: string}
+                  upload_url: {type: string, format: uri}
+                  expires_at: {type: string, format: date-time}
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+  schemas:
+    JobSubmission:
+      type: object
+      additionalProperties: false
+      required: [case_id, operation, idempotency_key, inputs, callback_url]
+      properties:
+        case_id: {type: string}
+        operation:
+          enum:
+            - security_onion_enrich
+            - security_onion_pcap_carve
+            - network_deterministic_analysis
+            - host_profile
+            - host_artifact_extract
+            - host_memory_extract
+        idempotency_key: {type: string, maxLength: 256}
+        inputs:
+          type: object
+          description: Evidence references and bounded operation parameters only.
+          additionalProperties: true
+        callback_url:
+          type: string
+          format: uri
+          description: Authenticated n8n callback URL.
+        limits:
+          type: object
+          properties:
+            max_runtime_seconds: {type: integer, minimum: 1, maximum: 86400}
+            max_output_bytes: {type: integer, minimum: 1}
+            max_evidence_bytes: {type: integer, minimum: 1}
+    JobStatus:
+      type: object
+      required: [job_id, case_id, state, created_at]
+      properties:
+        job_id: {type: string}
+        case_id: {type: string}
+        state: {enum: [queued, running, succeeded, failed, cancelled]}
+        created_at: {type: string, format: date-time}
+        started_at: {type: string, format: date-time}
+        completed_at: {type: string, format: date-time}
+        output_objects:
+          type: array
+          items:
+            type: object
+            required: [object_id, sha256]
+            properties:
+              object_id: {type: string}
+              sha256: {type: string}
+              media_type: {type: string}
+        error:
+          type: object
+          properties:
+            code: {type: string}
+            message: {type: string}
+            retryable: {type: boolean}
+
