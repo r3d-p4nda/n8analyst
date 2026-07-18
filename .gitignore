@@ -1,0 +1,13 @@
+.env
+*.pcap
+*.pcapng
+*.e01
+*.E01
+*.raw
+*.img
+*.vhd
+*.vhdx
+*.vmdk
+evidence/
+reports/
+
